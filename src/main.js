@@ -12,14 +12,6 @@ const discoveryPhrases = [
   'the kind of ordinary scene that makes a walk feel personal',
 ]
 
-const timePhrases = [
-  "today's walk",
-  'a slow Tokyo wander',
-  'this quiet stretch of the city',
-  'a gentle detour through the neighborhood',
-  'an unhurried moment between errands',
-]
-
 const styleTemplates = [
   {
     id: 'calm',
@@ -44,20 +36,14 @@ const styleTemplates = [
   },
 ]
 
-function getPhotoSeed(photoName) {
-  const cleanName = photoName?.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ')
-  return cleanName ? `“${cleanName}”` : discoveryPhrases[0]
-}
-
 function formatMoodContext(moodText) {
   const trimmedMood = moodText.trim().replace(/\s+/g, ' ')
   return trimmedMood ? `${trimmedMood}. ` : ''
 }
 
-function createDrafts(photoName, moodText) {
-  const seed = getPhotoSeed(photoName)
+function createDrafts(moodText) {
   const context = formatMoodContext(moodText)
-  const scene = seed.startsWith('“') ? `${timePhrases[1]} from ${seed}` : seed
+  const scene = discoveryPhrases[0]
 
   return styleTemplates.map((style) => ({
     ...style,
@@ -92,7 +78,7 @@ function App() {
   )
 
   const drafts = useMemo(
-    () => (selectedPhoto ? createDrafts(selectedPhoto.name, moodText) : []),
+    () => (selectedPhoto ? createDrafts(moodText) : []),
     [moodText, selectedPhoto],
   )
 
@@ -105,8 +91,7 @@ function App() {
     }
 
     const nextPhotos = imageFiles.map((file) => ({
-      id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
-      name: file.name,
+      id: `${file.lastModified}-${file.size}-${crypto.randomUUID()}`,
       url: URL.createObjectURL(file),
     }))
 
@@ -182,7 +167,7 @@ function App() {
             h(
               'div',
               { className: 'thumbnail-grid' },
-              photos.map((photo) =>
+              photos.map((photo, index) =>
                 h(
                   'button',
                   {
@@ -190,7 +175,7 @@ function App() {
                     key: photo.id,
                     type: 'button',
                     onClick: () => setSelectedId(photo.id),
-                    'aria-label': `Select ${photo.name}`,
+                    'aria-label': `Select Tokyo walk photo ${index + 1}`,
                     'aria-pressed': photo.id === selectedId,
                   },
                   h(
@@ -198,10 +183,10 @@ function App() {
                     { className: 'thumbnail-image-wrap' },
                     h('img', {
                       src: photo.url,
-                      alt: `Uploaded Tokyo walk: ${photo.name}`,
+                      alt: 'Uploaded Tokyo walk preview',
                     }),
                   ),
-                  h('span', { className: 'thumbnail-name' }, photo.name),
+                  h('span', { className: 'thumbnail-name' }, `Photo ${index + 1}`),
                 ),
               ),
             ),
@@ -225,13 +210,13 @@ function App() {
                 { className: 'selected-preview' },
                 h('img', {
                   src: selectedPhoto.url,
-                  alt: `Selected Tokyo walk: ${selectedPhoto.name}`,
+                  alt: 'Selected Tokyo walk preview',
                 }),
                 h(
                   'div',
                   null,
                   h('p', { className: 'preview-label' }, 'Selected moment'),
-                  h('h3', null, selectedPhoto.name),
+                  h('h3', null, 'Quiet Tokyo walk'),
                 ),
               ),
             h(
