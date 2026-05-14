@@ -20,20 +20,56 @@ const timePhrases = [
   'an unhurried moment between errands',
 ]
 
-function createDrafts(photoName) {
-  const cleanName = photoName?.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ')
-  const seed = cleanName ? ` from “${cleanName}”` : ''
+const styleTemplates = [
+  {
+    id: 'calm',
+    label: 'Calm',
+    helper: 'Quiet, observant, and simple.',
+    createPost: ({ scene, context }) =>
+      `A small pause from ${scene}. ${context}Nothing dramatic, just a quiet Tokyo moment that made the walk feel softer.`,
+  },
+  {
+    id: 'emotional',
+    label: 'Emotional',
+    helper: 'Warm, personal, and reflective.',
+    createPost: ({ scene, context }) =>
+      `I keep thinking about ${scene}. ${context}It felt like one of those tiny Tokyo moments that stays with you longer than expected.`,
+  },
+  {
+    id: 'cinematic',
+    label: 'Cinematic',
+    helper: 'Visual, atmospheric, and story-like.',
+    createPost: ({ scene, context }) =>
+      `Tokyo, framed in a quiet cutaway: ${scene}. ${context}Soft light, small details, and the feeling that the city is telling a story in the background.`,
+  },
+]
 
-  return [
-    `Found ${discoveryPhrases[0]}${seed}. Tokyo always feels warmest in these small, quiet moments.`,
-    `${timePhrases[1]}${seed}: ${discoveryPhrases[4]}. Nothing loud, just a tiny discovery worth keeping.`,
-    `I like when ${timePhrases[2]} offers ${discoveryPhrases[3]}. A simple reminder to look twice while walking.`,
-  ]
+function getPhotoSeed(photoName) {
+  const cleanName = photoName?.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ')
+  return cleanName ? `“${cleanName}”` : discoveryPhrases[0]
+}
+
+function formatMoodContext(moodText) {
+  const trimmedMood = moodText.trim().replace(/\s+/g, ' ')
+  return trimmedMood ? `${trimmedMood}. ` : ''
+}
+
+function createDrafts(photoName, moodText) {
+  const seed = getPhotoSeed(photoName)
+  const context = formatMoodContext(moodText)
+  const scene = seed.startsWith('“') ? `${timePhrases[1]} from ${seed}` : seed
+
+  return styleTemplates.map((style) => ({
+    ...style,
+    post: style.createPost({ scene, context }),
+  }))
 }
 
 function App() {
   const [photos, setPhotos] = useState([])
   const [selectedId, setSelectedId] = useState(null)
+  const [moodText, setMoodText] = useState('')
+  const [copiedStyle, setCopiedStyle] = useState(null)
 
   useEffect(() => {
     return () => {
@@ -41,14 +77,23 @@ function App() {
     }
   }, [photos])
 
+  useEffect(() => {
+    if (!copiedStyle) {
+      return undefined
+    }
+
+    const timeout = window.setTimeout(() => setCopiedStyle(null), 1800)
+    return () => window.clearTimeout(timeout)
+  }, [copiedStyle])
+
   const selectedPhoto = useMemo(
     () => photos.find((photo) => photo.id === selectedId),
     [photos, selectedId],
   )
 
   const drafts = useMemo(
-    () => (selectedPhoto ? createDrafts(selectedPhoto.name) : []),
-    [selectedPhoto],
+    () => (selectedPhoto ? createDrafts(selectedPhoto.name, moodText) : []),
+    [moodText, selectedPhoto],
   )
 
   function handlePhotoUpload(event) {
@@ -74,6 +119,12 @@ function App() {
     photos.forEach((photo) => URL.revokeObjectURL(photo.url))
     setPhotos([])
     setSelectedId(null)
+    setCopiedStyle(null)
+  }
+
+  async function copyDraft(styleId, post) {
+    await navigator.clipboard.writeText(post)
+    setCopiedStyle(styleId)
   }
 
   return h(
@@ -87,7 +138,7 @@ function App() {
       h(
         'p',
         { className: 'intro' },
-        'Upload walk photos, choose one scene, and draft calm English posts for X. The app keeps everything local in your browser and never auto-posts.',
+        'Upload walk photos, choose one scene, add a little mood or location context, and create three elegant post styles for X. Everything stays local in your browser.',
       ),
       h(
         'label',
@@ -139,13 +190,18 @@ function App() {
                     key: photo.id,
                     type: 'button',
                     onClick: () => setSelectedId(photo.id),
+                    'aria-label': `Select ${photo.name}`,
                     'aria-pressed': photo.id === selectedId,
                   },
-                  h('img', {
-                    src: photo.url,
-                    alt: `Uploaded Tokyo walk: ${photo.name}`,
-                  }),
-                  h('span', null, photo.name),
+                  h(
+                    'span',
+                    { className: 'thumbnail-image-wrap' },
+                    h('img', {
+                      src: photo.url,
+                      alt: `Uploaded Tokyo walk: ${photo.name}`,
+                    }),
+                  ),
+                  h('span', { className: 'thumbnail-name' }, photo.name),
                 ),
               ),
             ),
@@ -160,7 +216,7 @@ function App() {
                 'div',
                 null,
                 h('p', { className: 'eyebrow' }, 'Step 2'),
-                h('h2', null, 'Drafts for X'),
+                h('h2', null, 'Add context'),
               ),
             ),
             selectedPhoto &&
@@ -179,14 +235,49 @@ function App() {
                 ),
               ),
             h(
+              'label',
+              { className: 'mood-field' },
+              h('span', null, 'Mood or location'),
+              h('textarea', {
+                value: moodText,
+                onChange: (event) => setMoodText(event.target.value),
+                placeholder: 'Example: after light rain near Yanaka, quiet and nostalgic',
+                rows: 4,
+              }),
+            ),
+            h(
+              'div',
+              { className: 'draft-heading' },
+              h('p', { className: 'eyebrow' }, 'Step 3'),
+              h('h2', null, 'Generated styles'),
+            ),
+            h(
               'div',
               { className: 'draft-list' },
-              drafts.map((draft, index) =>
+              drafts.map((draft) =>
                 h(
                   'article',
-                  { className: 'draft-card', key: draft },
-                  h('p', { className: 'draft-number' }, `Draft ${index + 1}`),
-                  h('p', null, draft),
+                  { className: 'draft-card', key: draft.id },
+                  h(
+                    'div',
+                    { className: 'draft-card-header' },
+                    h(
+                      'div',
+                      null,
+                      h('p', { className: 'draft-number' }, draft.label),
+                      h('p', { className: 'draft-helper' }, draft.helper),
+                    ),
+                    h(
+                      'button',
+                      {
+                        className: 'copy-button',
+                        type: 'button',
+                        onClick: () => copyDraft(draft.id, draft.post),
+                      },
+                      copiedStyle === draft.id ? 'Copied' : 'Copy',
+                    ),
+                  ),
+                  h('p', { className: 'draft-post' }, draft.post),
                 ),
               ),
             ),
@@ -198,7 +289,7 @@ function App() {
           h(
             'p',
             null,
-            'Your thumbnails and three warm, natural post drafts will appear here after you upload images.',
+            'Your preview thumbnails, selected photo, mood field, and calm / emotional / cinematic posts will appear here after you upload images.',
           ),
         ),
   )
